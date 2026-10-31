@@ -11,7 +11,8 @@ class InstallCommand extends Command
 {
     protected $signature = 'a11y:install
         {--no-npm : Skip installing playwright, axe-core and Chromium}
-        {--no-vite : Do not add the Vite plugin (Vue/React markers) to vite.config}';
+        {--no-vite : Do not add the Vite plugin (Vue/React markers) to vite.config}
+        {--ci : Also add a GitHub Actions workflow (.github/workflows/a11y.yml)}';
 
     protected $description = 'Publish laravel-a11y config, install the browser scanner and add the Vite plugin for Vue/React';
 
@@ -50,10 +51,29 @@ class InstallCommand extends Command
             $this->addVitePlugin();
         }
 
+        if ($this->option('ci')) {
+            $this->addWorkflow();
+        }
+
         Artisan::call('view:clear');
         $this->components->info('Done. Start your app, then run: php artisan a11y:scan');
 
         return self::SUCCESS;
+    }
+
+    private function addWorkflow(): void
+    {
+        $target = base_path('.github/workflows/a11y.yml');
+
+        if (file_exists($target)) {
+            $this->components->info('.github/workflows/a11y.yml already exists; left unchanged');
+
+            return;
+        }
+
+        @mkdir(dirname($target), 0755, true);
+        copy(__DIR__.'/../../stubs/github-action.yml', $target);
+        $this->components->info('Added .github/workflows/a11y.yml (check the "Prepare app" step matches your app, e.g. seeders and the --as user id)');
     }
 
     private function addVitePlugin(): void

@@ -39,6 +39,12 @@ class RouteDiscoverer
                 continue;
             }
 
+            if ($word = $this->unsafeWord($route, $config['unsafe_words'] ?? [])) {
+                $this->skipped[] = ['uri' => $uri, 'reason' => "may change data (\"{$word}\"); pass the URL explicitly to scan it"];
+
+                continue;
+            }
+
             // Filament pages are found (with their records and guard) by FilamentDiscoverer.
             if ($skipFilament && str_starts_with((string) $route->getName(), 'filament.')) {
                 continue;
@@ -65,6 +71,23 @@ class RouteDiscoverer
             'public' => array_slice(array_values(array_unique($found['public'])), 0, $max),
             'auth' => array_slice(array_values(array_unique($found['auth'])), 0, $max),
         ];
+    }
+
+    /** First unsafe word found as a whole segment/part of the URI or route name, e.g. "clear-cache" → "clear". */
+    private function unsafeWord(Route $route, array $words): ?string
+    {
+        $parts = preg_split('/[^a-z0-9]+/', strtolower($route->uri().' '.$route->getName()), -1, PREG_SPLIT_NO_EMPTY);
+
+        foreach ($words as $word) {
+            $needle = preg_split('/[^a-z0-9]+/', strtolower($word), -1, PREG_SPLIT_NO_EMPTY);
+            for ($i = 0; $i + count($needle) <= count($parts); $i++) {
+                if (array_slice($parts, $i, count($needle)) === $needle) {
+                    return $word;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function needsAuth(Route $route): bool

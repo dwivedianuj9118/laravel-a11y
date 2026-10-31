@@ -73,6 +73,24 @@ async function scanPage(context, url, session) {
 
         result.finalUrl = page.url();
 
+        // How many source markers the page carries: zero everywhere means we are scanning the wrong
+        // app, a production build, or a page served from cache.
+        result.markers = await page.evaluate(() => document.querySelectorAll('[data-a11y-src],[data-a11y-use]').length).catch(() => 0);
+
+        // PHP notices/warnings echoed into the HTML (display_errors=On), e.g. "<b>Deprecated</b>: ..."
+        result.phpOutput = await page
+            .evaluate(() => {
+                const re = /<b>(Deprecated|Warning|Notice|Fatal error|Parse error|Strict Standards|Recoverable fatal error)<\/b>:\s*([^<]{0,140})/g;
+                const html = document.documentElement.outerHTML;
+                let m, count = 0, first = null;
+                while ((m = re.exec(html))) {
+                    count++;
+                    if (!first) first = `${m[1]}: ${m[2].trim()}`;
+                }
+                return count ? { count, first } : null;
+            })
+            .catch(() => null);
+
         await page.addScriptTag({ content: axeSource });
         result.violations = await page.evaluate(
             async ({ tags, ATTR, USE }) => {

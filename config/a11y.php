@@ -33,6 +33,18 @@ return [
         'lens-for-laravel*', '_inertia*', '_boost*',
     ],
 
+    /*
+    | GET routes whose URI or name contains one of these words are never visited by route
+    | discovery, because opening them may change something (log out, clear cache, run a job…).
+    | Pass the URL to a11y:scan explicitly if you really want it scanned.
+    */
+    'unsafe_words' => [
+        'logout', 'log-out', 'signout', 'sign-out', 'clear', 'cache', 'flush', 'artisan', 'migrate', 'seed',
+        'optimize', 'install', 'deploy', 'delete', 'destroy', 'remove', 'reset', 'cron', 'queue', 'webhook',
+        'callback', 'impersonate', 'unsubscribe', 'export', 'download', 'backup', 'restore', 'sync', 'refresh',
+        'run', 'trigger', 'toggle', 'approve', 'reject', 'cancel', 'verify', 'confirm', 'activate', 'payment',
+    ],
+
     // Values for route parameters, e.g. ['user' => 1, 'post' => 'hello-world'].
     // Model-bound parameters without a value here use the first record in the table.
     'params' => [],
@@ -59,6 +71,9 @@ return [
     'wait_ms' => 0,
 
     'node_binary' => env('A11Y_NODE', 'node'),
+
+    // Known issues accepted for now (php artisan a11y:scan --baseline). Commit this file.
+    'baseline' => 'a11y-baseline.json',
 
     // Exit with code 1 when an issue of this impact or worse is found: minor, moderate, serious, critical
     'fail_on' => 'serious',

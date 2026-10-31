@@ -6,12 +6,16 @@ use DwivediAnuj\A11y\A11yServiceProvider;
 use DwivediAnuj\A11y\Auth\ScanLoginController;
 use DwivediAnuj\A11y\Discovery\FilamentDiscoverer;
 use DwivediAnuj\A11y\Discovery\RouteDiscoverer;
+use DwivediAnuj\A11y\Report\Baseline;
+use DwivediAnuj\A11y\Report\HtmlReporter;
 use DwivediAnuj\A11y\Report\IssueGrouper;
+use DwivediAnuj\A11y\Report\SarifReporter;
 use DwivediAnuj\A11y\Resolve\FilamentFieldLocator;
 use DwivediAnuj\A11y\Resolve\SourceResolver;
 use DwivediAnuj\A11y\Scan\Scanner;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Throwable;
 
@@ -25,6 +29,10 @@ class ScanCommand extends Command
         {--best-practice : Also run axe best-practice rules}
         {--fail-on= : Exit 1 on this impact or worse: minor, moderate, serious, critical, none}
         {--json= : Write the full report as JSON to this path}
+        {--html= : Write a shareable HTML report to this path}
+        {--sarif= : Write SARIF 2.1.0 (GitHub code scanning annotations) to this path}
+        {--baseline : Accept all current issues: save them to the baseline file and exit successfully}
+        {--baseline-file= : Baseline path (default: a11y.baseline)}
         {--keep-views : Do not clear compiled views before scanning}';
 
     protected $description = 'Scan pages for WCAG issues and show the file:line to fix';
@@ -63,6 +71,10 @@ class ScanCommand extends Command
             Artisan::call('view:clear'); // views compiled before markers were enabled have none
         }
 
+        if (! $this->reachable($base)) {
+            return self::FAILURE;
+        }
+
         $sessions = $this->buildSessions($routes, $filament, $config, $base, $user, $guard);
         $total = array_sum(array_map(fn ($s) => count($s['urls']), $sessions));
 
@@ -89,26 +101,110 @@ class ScanCommand extends Command
         $resolver = new SourceResolver(new FilamentFieldLocator(base_path()), base_path());
         $issues = IssueGrouper::group($scan, $resolver);
 
+        $baselineFile = $this->option('baseline-file') ?: ($config['baseline'] ?? 'a11y-baseline.json');
+        $baselinePath = str_starts_with($baselineFile, '/') ? $baselineFile : base_path($baselineFile);
+        $baseline = $this->option('baseline') ? [] : Baseline::load($baselinePath);
+        $issues = Baseline::mark($issues, $baseline);
+
         $this->renderPageProblems($scan);
-        $this->renderIssues($issues);
+        $this->warnIfNoMarkers($scan, $base, (bool) $config['markers']);
+        $this->renderIssues($issues, $baseline !== []);
         $this->renderSkipped();
+        $this->writeReports($issues, $scan, $standard, $base, count($baseline));
+
+        if ($this->option('baseline')) {
+            Baseline::save($baselinePath, $issues);
+            $this->newLine();
+            $this->components->info(count($issues).' issue(s) saved as the baseline in '.$baselineFile.'. Commit it; from now on a11y:scan fails only on new issues.');
+
+            return self::SUCCESS;
+        }
+
+        $failing = $failOn === 'none' ? [] : array_filter(
+            $issues,
+            fn ($i) => empty($i['baseline']) && IssueGrouper::meetsThreshold($i['impact'], $failOn),
+        );
+
+        if ($failing !== [] && $failOn !== 'none') {
+            $this->newLine();
+            $this->components->error(count($failing)." new issue(s) at '{$failOn}' or worse.");
+        }
+
+        return $failing === [] ? self::SUCCESS : self::FAILURE;
+    }
+
+    /** Markers on but none on any loaded page: almost always the wrong app or a production build. */
+    private function warnIfNoMarkers(array $scan, string $base, bool $markersOn): void
+    {
+        $loaded = array_filter($scan['pages'], fn ($p) => ! $p['error']);
+
+        if (! $markersOn || $loaded === [] || array_sum(array_map(fn ($p) => (int) ($p['markers'] ?? 0), $loaded)) > 0) {
+            return;
+        }
+
+        $this->components->warn("None of the scanned pages has laravel-a11y source markers, so no issue can be mapped to your code. Is {$base} really this app (check nothing else is running on that port), with APP_ENV=".app()->environment().' and laravel-a11y installed? If pages are cached (response cache, CDN), clear that cache.');
+    }
+
+    private function writeReports(array $issues, array $scan, string $standard, string $base, int $baselineCount): void
+    {
+        $pages = array_map(
+            fn ($p) => array_intersect_key($p, array_flip(['session', 'url', 'finalUrl', 'status', 'error', 'phpOutput', 'markers'])),
+            $scan['pages'],
+        );
+
+        $report = [
+            'standard' => $standard,
+            'base_url' => $base,
+            'axe' => $scan['meta']['axe'] ?? null,
+            'generated_at' => now()->format('Y-m-d H:i'),
+            'sessions' => $scan['sessions'] ?? [],
+            'pages' => $pages,
+            'issues' => $issues,
+            'skipped' => $this->skipped,
+            'baseline_count' => $baselineCount,
+        ];
 
         if ($path = $this->option('json')) {
-            file_put_contents($path, json_encode([
-                'standard' => $standard,
-                'base_url' => $base,
-                'axe' => $scan['meta']['axe'] ?? null,
-                'sessions' => $scan['sessions'] ?? [],
-                'pages' => array_map(fn ($p) => array_intersect_key($p, array_flip(['session', 'url', 'finalUrl', 'status', 'error'])), $scan['pages']),
-                'issues' => $issues,
-                'skipped' => $this->skipped,
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            file_put_contents($path, json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
             $this->components->info("JSON report written to {$path}");
         }
 
-        $failing = $failOn === 'none' ? [] : array_filter($issues, fn ($i) => IssueGrouper::meetsThreshold($i['impact'], $failOn));
+        if ($path = $this->option('html')) {
+            file_put_contents($path, HtmlReporter::render($report, fn ($f, $l) => $this->editorLink($f, $l)));
+            $this->components->info("HTML report written to {$path}");
+        }
 
-        return $failing === [] ? self::SUCCESS : self::FAILURE;
+        if ($path = $this->option('sarif')) {
+            file_put_contents($path, json_encode(SarifReporter::build($issues, $this->packageVersion()), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->components->info("SARIF written to {$path}");
+        }
+    }
+
+    private function packageVersion(): string
+    {
+        try {
+            return \Composer\InstalledVersions::getPrettyVersion('dwivedianuj/laravel-a11y') ?? 'dev';
+        } catch (Throwable) {
+            return 'dev';
+        }
+    }
+
+    /** Fail fast with a clear message when the app is not running at the base URL. */
+    private function reachable(string $base): bool
+    {
+        try {
+            Http::timeout(10)->connectTimeout(5)->withoutRedirecting()->get($base);
+
+            return true; // any HTTP status means the server answered
+        } catch (Throwable $e) {
+            $this->components->error("Cannot reach {$base} (".strtok($e->getMessage(), "\n").').');
+            $this->line('  Is the app running there? Start it and point the scanner at it, e.g.:');
+            $this->line('    php artisan serve --port=8123');
+            $this->line('    A11Y_BASE_URL=http://127.0.0.1:8123 php artisan a11y:scan');
+            $this->line('  Herd/Valet sites: check the site responds with `curl -I '.$base.'` (herd restart / herd link).');
+
+            return false;
+        }
     }
 
     /**
@@ -176,10 +272,14 @@ class ScanCommand extends Command
             } elseif (rtrim(strtok($page['finalUrl'], '?'), '/') !== rtrim(strtok($page['url'], '?'), '/')) {
                 $this->components->warn("{$label} redirected to {$page['finalUrl']} (scanned that page instead)");
             }
+
+            if (! empty($page['phpOutput'])) {
+                $this->components->warn(OutputFormatter::escape("{$label} has PHP output printed into the page ({$page['phpOutput']['count']}×, e.g. \"{$page['phpOutput']['first']}\"). Turn off display_errors or fix the cause; visitors would see it."));
+            }
         }
     }
 
-    private function renderIssues(array $issues): void
+    private function renderIssues(array $issues, bool $hasBaseline = false): void
     {
         $this->newLine();
 
@@ -197,7 +297,8 @@ class ScanCommand extends Command
             $times = $issue['count'] > 1 ? " <fg=gray>×{$issue['count']}</>" : '';
             $pages = count($issue['pages']) > 1 ? ' <fg=gray>on '.count($issue['pages']).' pages</>' : '';
 
-            $this->line(sprintf('  <fg=%s;options=bold>%-8s</> <options=bold>%s</><fg=gray>%s</>%s', $color, strtoupper($issue['impact']), $issue['rule'], $wcag, $times.$pages));
+            $known = ! empty($issue['baseline']) ? ' <fg=gray>(in baseline)</>' : '';
+            $this->line(sprintf('  <fg=%s;options=bold>%-8s</> <options=bold>%s</><fg=gray>%s</>%s', $color, strtoupper($issue['impact']), $issue['rule'], $wcag, $times.$pages.$known));
             $this->line('  '.$this->location($issue));
             foreach ($issue['also'] as $also) {
                 $this->line('  <fg=gray>  ↳ '.OutputFormatter::escape($also).'</>');
@@ -217,7 +318,9 @@ class ScanCommand extends Command
             ->map(fn ($k) => "{$byImpact[$k]} {$k}")
             ->implode(', ');
 
-        $this->line('  <options=bold>'.count($issues)." issue(s)</>: {$summary}  ·  {$exact}/".count($issues).' mapped to an exact line in your code');
+        $newCount = count(array_filter($issues, fn ($i) => empty($i['baseline'])));
+        $this->line('  <options=bold>'.count($issues)." issue(s)</>: {$summary}  ·  {$exact}/".count($issues).' mapped to an exact line in your code'
+            .($hasBaseline ? "  ·  <options=bold>{$newCount} new</> since baseline" : ''));
         $this->line('  <fg=gray>Automated checks find only part of WCAG. Also test keyboard use, focus order, alt-text quality and captions by hand.</>');
     }
 

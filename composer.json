@@ -1,7 +1,21 @@
 {
     "name": "dwivedianuj/laravel-a11y",
     "description": "Find WCAG accessibility issues in Laravel apps and get the exact Blade, Livewire, Filament or Inertia file:line to fix.",
-    "keywords": ["laravel", "accessibility", "a11y", "wcag", "axe-core", "blade", "livewire", "filament", "inertia"],
+    "keywords": [
+        "a11y",
+        "accessibility",
+        "axe-core",
+        "blade",
+        "filament",
+        "inertia",
+        "laravel",
+        "livewire",
+        "react",
+        "sarif",
+        "vue",
+        "wcag",
+        "wcag-2.2"
+    ],
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -13,6 +27,7 @@
     "require": {
         "php": "^8.2",
         "illuminate/console": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
         "illuminate/process": "^11.0|^12.0|^13.0",
         "illuminate/routing": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
@@ -43,5 +58,10 @@
         "test": "phpunit"
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "homepage": "https://github.com/dwivedianuj9118/laravel-a11y",
+    "support": {
+        "issues": "https://github.com/dwivedianuj9118/laravel-a11y/issues",
+        "source": "https://github.com/dwivedianuj9118/laravel-a11y"
+    }
 }

@@ -1,0 +1,87 @@
+# laravel-a11y: scan every pull request for WCAG issues.
+# New issues show up as annotations on the exact lines in "Files changed" (via code scanning),
+# and the job fails on new serious/critical issues. Known issues live in a11y-baseline.json.
+name: Accessibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read          # needed by upload-sarif in private repositories
+  security-events: write # upload SARIF to code scanning
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite
+          coverage: none
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Prepare app
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+          php artisan migrate --force --seed
+        env:
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+
+      - name: Build front-end with source markers (CI only, never deployed)
+        run: npm run build
+        env:
+          A11Y_BUILD_MARKERS: 'true'
+
+      - name: Serve app
+        run: php artisan serve --host=127.0.0.1 --port=8000 > /tmp/serve.log 2>&1 &
+        env:
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+
+      - name: Scan
+        run: |
+          sleep 3
+          php artisan a11y:scan --as=1 --fail-on=serious \
+            --sarif=a11y.sarif --html=a11y-report.html --json=a11y-report.json
+        env:
+          APP_ENV: local
+          DB_CONNECTION: sqlite
+          A11Y_BASE_URL: http://127.0.0.1:8000
+
+      # Free on public repositories; private ones need GitHub Code Security. If it is not
+      # enabled this step is skipped over, and the HTML report + pass/fail check still work.
+      - name: Upload annotations to code scanning
+        if: always() && hashFiles('a11y.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: a11y.sarif
+          category: laravel-a11y
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a11y-report
+          path: |
+            a11y-report.html
+            a11y-report.json
