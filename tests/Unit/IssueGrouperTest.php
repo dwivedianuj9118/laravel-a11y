@@ -52,4 +52,46 @@ class IssueGrouperTest extends TestCase
         $this->assertSame(['resources/js/Pages/Fixture.vue'], $where['image-alt page']);
         $this->assertSame(['user:1'], $issues[0]['sessions']);
     }
+
+    public function test_passes_are_merged_and_variant_only_issues_are_labelled(): void
+    {
+        $issues = IssueGrouper::group(json_decode(file_get_contents(__DIR__.'/../fixtures/scan-output-variants.json'), true));
+        $by = [];
+        foreach ($issues as $i) {
+            $by[$i['rule'].' '.$i['file'].':'.$i['line']] = $i;
+        }
+
+        $this->assertSame('only at 320 px wide', IssueGrouper::variantNote($by['reflow resources/views/reflow.blade.php:4']));
+        $this->assertSame('only at 320 px wide', IssueGrouper::variantNote($by['reflow resources/views/reflow.blade.php:5']));
+        $this->assertSame('only in dark mode', IssueGrouper::variantNote($by['color-contrast resources/views/dark.blade.php:3']));
+        $this->assertSame(1, $by['color-contrast resources/views/dark.blade.php:3']['count']);
+        $this->assertSame(null, IssueGrouper::variantNote(['variants' => ['desktop', 'mobile']]));
+    }
+
+    public function test_same_element_in_several_passes_counts_once(): void
+    {
+        $page = fn ($variant) => ['session' => 'guest', 'variant' => $variant, 'url' => 'http://x/', 'finalUrl' => 'http://x/', 'violations' => [[
+            'id' => 'image-alt', 'impact' => 'critical', 'help' => 'h', 'helpUrl' => 'u', 'tags' => ['wcag111'],
+            'nodes' => [['target' => ['img'], 'html' => '<img>', 'src' => 'a.blade.php:3', 'how' => 'marker']],
+        ]]];
+        $issues = IssueGrouper::group(['pages' => [$page('desktop'), $page('mobile'), $page('dark')]]);
+
+        $this->assertSame(1, count($issues));
+        $this->assertSame(1, $issues[0]['count']);
+        $this->assertSame(['desktop', 'mobile', 'dark'], $issues[0]['variants']);
+    }
+
+    public function test_state_only_issues_say_which_click_reveals_them(): void
+    {
+        $issues = IssueGrouper::group(json_decode(file_get_contents(__DIR__.'/../fixtures/scan-output-states.json'), true));
+        $by = [];
+        foreach ($issues as $i) {
+            $by[$i['rule'].' '.$i['line']] = $i;
+        }
+
+        $this->assertSame('only after opening a menu or dialog', IssueGrouper::variantNote($by['image-alt 6']));
+        $this->assertSame(['appears after clicking “Menu” (resources/views/states.blade.php:3)'], $by['image-alt 6']['also']);
+        $this->assertSame(['appears after clicking “More filters” (resources/views/states.blade.php:10)'], $by['label 11']['also']);
+        $this->assertSame(null, IssueGrouper::variantNote($by['target-size 3']), 'also visible without clicking');
+    }
 }

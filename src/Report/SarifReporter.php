@@ -35,7 +35,8 @@ final class SarifReporter
             $text = "{$issue['help']} ({$issue['impact']}".($issue['wcag'] ? ', WCAG '.implode(', ', $issue['wcag']) : '').").\n"
                 ."Fix: {$issue['fix']}\n"
                 ."Element: ".mb_strimwidth(preg_replace('/\s+/', ' ', $issue['html']), 0, 200, '…')."\n"
-                ."Seen on: {$pages}";
+                ."Seen on: {$pages}"
+                .(($only = IssueGrouper::variantNote($issue)) ? " ({$only})" : '');
 
             $results[] = [
                 'ruleId' => $issue['rule'],

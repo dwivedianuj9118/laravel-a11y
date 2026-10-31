@@ -26,6 +26,28 @@ return [
     // Also run axe "best-practice" rules (not WCAG requirements).
     'best_practice' => false,
 
+    // Keyboard & focus checks with real Tab presses: unreachable click handlers (2.1.1), focus
+    // traps (2.1.2), invisible focus (2.4.7), focus hidden behind sticky bars (2.4.11).
+    'keyboard' => true,
+    'max_tabs' => 150,
+
+    /*
+    | Open menus, accordions, popups and dialogs and scan again (issues that only exist after a
+    | click). Only explicit open/close controls are clicked (aria-expanded, aria-haspopup, <summary>,
+    | Alpine toggles) — never submit buttons, navigating links or wire:click — and all non-GET
+    | requests are blocked during this pass, so nothing can be saved or deleted.
+    */
+    'states' => true,
+    'max_states' => 5, // per page
+
+    // Also scan every page at 320 px wide (WCAG 1.4.10 Reflow + issues that only appear on phones).
+    'mobile' => true,
+
+    // Also scan every page with prefers-color-scheme: dark (contrast in your dark theme). CLI: --dark
+    'dark' => false,
+    // If your dark theme is switched by a class on <html> (Tailwind darkMode: 'class'), name it here, e.g. 'dark'.
+    'dark_class' => null,
+
     // Route URIs to skip (Str::is patterns).
     'exclude' => [
         '_ignition*', '_debugbar*', 'telescope*', 'horizon*', 'pulse*', 'api/*', 'sanctum/*',

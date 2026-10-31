@@ -49,10 +49,20 @@ class Scanner
             'timeoutMs' => $options['timeout_ms'] ?? 30000,
             'waitMs' => $options['wait_ms'] ?? 0,
             'headers' => ['X-A11y-Scan' => '1'],
+            'keyboard' => (bool) ($options['keyboard'] ?? true),
+            'states' => (bool) ($options['states'] ?? true),
+            'maxStates' => (int) ($options['max_states'] ?? 5),
+            'variants' => array_values(array_filter([
+                ($options['mobile'] ?? true) ? 'mobile' : null,
+                ($options['dark'] ?? false) ? 'dark' : null,
+            ])),
+            'darkClass' => $options['dark_class'] ?? null,
+            'maxTabs' => (int) ($options['max_tabs'] ?? 150),
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         $script = realpath(__DIR__.'/../../js/scanner/scan.mjs');
-        $count = array_sum(array_map(fn ($s) => count($s['urls']) + 1, $sessions));
+        $passes = 1 + (int) ($options['mobile'] ?? true) + (int) ($options['dark'] ?? false) + (($options['states'] ?? true) ? (int) ($options['max_states'] ?? 5) : 0);
+        $count = $passes * array_sum(array_map(fn ($s) => count($s['urls']) + 1, $sessions));
         $timeout = max(60, (int) ceil($count * (($options['timeout_ms'] ?? 30000) / 1000 + 10)));
 
         $result = Process::path(base_path())

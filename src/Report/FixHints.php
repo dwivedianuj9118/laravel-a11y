@@ -36,6 +36,11 @@ final class FixHints
         'meta-viewport' => 'Remove user-scalable=no / maximum-scale from the viewport meta tag.',
         'autocomplete-valid' => 'Use a valid autocomplete value (email, name, tel, current-password…).',
         'empty-heading' => 'Put text in the heading or remove it.',
+        'keyboard-unreachable' => 'Use <button type="button" wire:click="…"> / <button @click="…"> instead of a <div>/<span> with a click handler (or add tabindex="0", a role and Enter/Space handling).',
+        'focus-trap' => 'Let Tab move on: remove keydown handlers that preventDefault() on Tab; modals must close with Esc and return focus.',
+        'focus-not-visible' => 'Add a :focus-visible style (outline: 2px solid; outline-offset: 2px, or Tailwind focus-visible:ring-2); never remove outlines without a replacement.',
+        'focus-obscured' => 'Keep focused elements visible: add scroll-padding-top (sticky headers) or scroll-padding-bottom (cookie bars) on html, or move the overlay.',
+        'reflow' => 'Remove fixed widths / white-space:nowrap / wide tables at small widths; use max-width:100%, flex-wrap, overflow-x:auto on the table wrapper.',
         'svg-img-alt' => 'Add role="img" with aria-label="…" (or <title>) to meaningful SVGs; aria-hidden="true" to decorative ones.',
     ];
 

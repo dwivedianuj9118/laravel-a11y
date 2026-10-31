@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>states</title>
+<style>[hidden]{display:none}</style></head>
+<body><main data-a11y-src="resources/views/states.blade.php:1">
+  <h1 data-a11y-src="resources/views/states.blade.php:2">States fixture</h1>
+  <button data-a11y-src="resources/views/states.blade.php:3" type="button" aria-expanded="false" aria-controls="menu"
+          onclick="var m=document.getElementById('menu'); m.hidden=!m.hidden; this.setAttribute('aria-expanded', String(!m.hidden))">Menu</button>
+  <div data-a11y-src="resources/views/states.blade.php:5" id="menu" hidden>
+    <img data-a11y-src="resources/views/states.blade.php:6" src="/menu-logo.png">
+    <a data-a11y-src="resources/views/states.blade.php:7" href="/profile"></a>
+  </div>
+  <details data-a11y-src="resources/views/states.blade.php:9">
+    <summary data-a11y-src="resources/views/states.blade.php:10">More filters</summary>
+    <input data-a11y-src="resources/views/states.blade.php:11" type="text">
+  </details>
+  <form data-a11y-src="resources/views/states.blade.php:13" action="/submitted" method="get">
+    <button data-a11y-src="resources/views/states.blade.php:14" aria-haspopup="true" type="submit" onclick="window.name='SUBMIT-CLICKED'">Submit (must not be clicked)</button>
+  </form>
+  <a data-a11y-src="resources/views/states.blade.php:16" href="/elsewhere" aria-expanded="false" onclick="window.name='LINK-CLICKED'">Navigating link (must not be clicked)</a>
+  <button data-a11y-src="resources/views/states.blade.php:17" type="button" aria-expanded="false" wire:click="delete" onclick="window.name='WIRE-CLICKED'">Delete (wire:click, must not be clicked)</button>
+</main></body></html>

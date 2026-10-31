@@ -47,6 +47,8 @@ final class HtmlReporter
             $wcag = $i['wcag'] ? 'WCAG '.$e(implode(', ', $i['wcag'])) : 'Best practice';
             $badgeNew = $hasBaseline ? (empty($i['baseline']) ? '<span class="tag new">new</span>' : '<span class="tag">in baseline</span>') : '';
             $times = $i['count'] > 1 ? ' <span class="muted">×'.$i['count'].'</span>' : '';
+            $only = IssueGrouper::variantNote($i);
+            $times .= $only ? ' <span class="tag">'.$e($only).'</span>' : '';
 
             $cards .= '<article class="issue" data-impact="'.$e($i['impact']).'" data-new="'.(empty($i['baseline']) ? '1' : '0').'" aria-labelledby="i'.$n.'">'
                 .'<h3 id="i'.$n.'"><span class="badge '.$e($i['impact']).'">'.$e($i['impact']).'</span> '.$e($i['help']).$times.' '.$badgeNew.'</h3>'
@@ -104,7 +106,8 @@ fieldset{border:1px solid var(--line);border-radius:8px;padding:8px 14px}fieldse
 .tag{font-size:12px;border:1px solid var(--line);border-radius:4px;padding:0 6px;color:var(--muted)}.tag.new{color:var(--crit);border-color:currentColor}
 .where{margin:6px 0;font-weight:600}.where .how{font-weight:400;color:var(--muted)}pre{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;white-space:pre-wrap;word-break:break-all;margin:8px 0}
 .also{margin:0 0 6px;color:var(--muted)}.fix{margin:6px 0}.ok{color:var(--ok);font-weight:600}.bad{color:var(--crit)}
-table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.where,.also,.issue h3,td,li,a{overflow-wrap:anywhere}th:nth-child(2),td:nth-child(2){width:22%}
 [hidden]{display:none!important}
 </style>
 </head>

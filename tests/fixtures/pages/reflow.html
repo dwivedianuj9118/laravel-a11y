@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>reflow</title>
+<style>body{margin:0;font:16px sans-serif} main{padding:8px}</style></head>
+<body><main data-a11y-src="resources/views/reflow.blade.php:1">
+  <h1 data-a11y-src="resources/views/reflow.blade.php:2">Reflow fixture</h1>
+  <p data-a11y-src="resources/views/reflow.blade.php:3">Normal paragraph that wraps fine on small screens because it has no fixed width at all.</p>
+  <div data-a11y-src="resources/views/reflow.blade.php:4" style="width:600px;background:#eee">R1 fixed 600px box</div>
+  <p data-a11y-src="resources/views/reflow.blade.php:5" style="white-space:nowrap">R2 this line never wraps and keeps going far past the edge of a phone screen</p>
+  <div data-a11y-src="resources/views/reflow.blade.php:6" style="overflow-x:auto">
+    <table data-a11y-src="resources/views/reflow.blade.php:7" style="width:900px"><tr><th>Wide</th><th>table</th></tr><tr><td>allowed</td><td>scrolls in its own box</td></tr></table>
+  </div>
+</main></body></html>

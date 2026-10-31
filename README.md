@@ -2,6 +2,8 @@
 
 Find WCAG accessibility issues in your Laravel app and get the **exact file and line to fix** — in Blade, Livewire, Filament and Inertia (Vue / React) — not a CSS selector.
 
+Beyond what axe-core checks on a static page, it also presses **Tab** through every page (keyboard traps, invisible focus, click handlers you can't reach by keyboard), re-checks pages **at 320 px wide** and in **dark mode**, and **opens menus and dialogs** to scan what they reveal. `a11y:lint` catches the common mistakes in Blade files before you even run the app.
+
 ```
   CRITICAL button-name WCAG 4.1.2 ×2
   resources/views/components/icon-button.blade.php:1
@@ -43,6 +45,8 @@ Issues are grouped by source line, so one broken component used on 40 pages is *
 
 PHP 8.2+, Laravel 11 / 12 / 13, Node 18+. Optional: Livewire 3/4, Filament 4/5, Inertia 2/3 with Vue 3 or React 18/19.
 
+A full scan visits each page up to 3 + `max_states` times (desktop with keyboard checks, 320 px, opened states, optional dark). For a quick run use `--no-mobile --no-states`.
+
 ## Install
 
 ```bash
@@ -52,6 +56,20 @@ php artisan a11y:install --ci     # …and a GitHub Actions workflow
 ```
 
 Markers and the scanner only run in the environments in `a11y.environments` (`local`, `testing`). Production HTML and production builds are never touched.
+
+## What it checks
+
+| Check | WCAG | How |
+| --- | --- | --- |
+| Everything axe-core covers (alt text, labels, contrast, ARIA, landmarks, headings…) | 2.0 / 2.1 / 2.2 A & AA | axe-core in headless Chromium |
+| Clickable `<div wire:click>`, `<span @click>`, `onclick` that keyboard users can't reach | 2.1.1 | Static DOM check |
+| Keyboard traps (Tab stops moving, or loops in a small group) | 2.1.2 | Real Tab presses |
+| No visible focus indicator | 2.4.7 | Focused vs unfocused styles compared |
+| Focused element hidden behind a sticky header / cookie bar | 2.4.11 (2.2) | Hit-testing while focused |
+| Horizontal scrolling at 320 px (fixed widths, `nowrap` text) | 1.4.10 | Extra pass at 320 px wide |
+| Low contrast only in your dark theme | 1.4.3 | Extra pass with `prefers-color-scheme: dark` (`--dark`) |
+| Issues inside menus, accordions, popups, dialogs | all | Opens them (safely, see below) and scans again |
+| PHP warnings printed into the page | — | Detected in the HTML |
 
 ## Scan
 
@@ -72,6 +90,8 @@ php artisan a11y:scan --html=a11y.html        # shareable HTML report
 | `--fail-on=` | Exit 1 on `minor`, `moderate`, `serious` (default), `critical`, or `none` |
 | `--json=`, `--html=`, `--sarif=` | Write reports |
 | `--baseline` | Accept the current issues (see below) |
+| `--dark` | Also scan in dark mode |
+| `--no-keyboard`, `--no-mobile`, `--no-states` | Skip the Tab walk, the 320 px pass, or opening menus/dialogs (faster) |
 
 Not on `APP_URL`? Use `A11Y_BASE_URL=http://127.0.0.1:8000 php artisan a11y:scan`.
 
@@ -81,6 +101,16 @@ Not on `APP_URL`? Use `A11Y_BASE_URL=http://127.0.0.1:8000 php artisan a11y:scan
 - With `--as`: routes behind `auth` and every Filament panel page and resource page (index, create, edit, view).
 - **Never** routes whose URI or name looks like it changes something — `logout`, `clear-cache`, `delete`, `export`, `cron`… (`a11y.unsafe_words`). Pass them explicitly if you really want them.
 - Skipped routes are listed with the reason.
+
+### Interactive states (safe by design)
+
+To find issues that only exist after a click, each page's open/close controls are clicked one at a time and the page is scanned again: `aria-expanded="false"`, `aria-haspopup`, `<summary>`, Bootstrap toggles, and Alpine toggles like `@click="open = !open"` or `$dispatch('open-modal', …)`.
+
+- It **never** clicks submit buttons, links that navigate, or anything with `wire:click`.
+- During this pass **every non-GET request is blocked** in the browser, so nothing can be saved, deleted or sent even by accident.
+- Issues found this way say which click revealed them: *appears after clicking “Menu” (resources/views/nav.blade.php:12)*.
+
+At most `a11y.max_states` (5) controls per page. Turn off with `--no-states` or `'states' => false`.
 
 ### Where issues point
 
@@ -92,6 +122,20 @@ Not on `APP_URL`? Use `A11Y_BASE_URL=http://127.0.0.1:8000 php artisan a11y:scan
 | `vendor file:line` | Inside a package view, and no line in your code uses it |
 
 The scanner also warns when **PHP warnings are printed into a page** (`<b>Deprecated</b>: …`) — visitors would see them.
+
+Issues that appear only in an extra pass are labelled *only at 320 px wide*, *only in dark mode* or *only after opening a menu or dialog*. The same element found in several passes counts once.
+
+## Lint Blade files (no browser)
+
+```bash
+php artisan a11y:lint                          # every .blade.php in resources/views
+php artisan a11y:lint resources/views/admin    # a folder or single files
+php artisan a11y:lint --sarif=lint.sarif --fail-on=critical
+```
+
+Seconds, no running app — good for a pre-commit hook or the first CI step. Checks: images without `alt`, form fields without a label, empty buttons and links (icon-only without `aria-label`), `<html>` without `lang`, `<iframe>` without `title`, positive `tabindex`, and click handlers on `div`/`span` without keyboard support.
+
+It reports only near-certain problems: anything that may be filled in at runtime (`{{ $attributes }}`, `:alt`, `x-text`, `{{ __('…') }}`, components inside a button, Filament actions) counts as fine. On the runtime views of Laravel, Filament and Livewire it reports nothing. `a11y:scan` remains the full check. Baseline: `--baseline` (stored in `a11y-lint-baseline.json`).
 
 ## Vue and React (Inertia)
 
@@ -149,7 +193,9 @@ After turning Blade markers on or off, run `php artisan view:clear` (`a11y:scan`
 
 ## Limits
 
-- Automated checks (axe-core) find only part of WCAG. Also test keyboard use, focus order, alt-text quality, zoom/reflow and captions by hand — the HTML report has a checklist.
+- Automated checks find only part of WCAG, even with the keyboard, reflow and state passes. Still check by hand: that focus order makes sense, alt text is meaningful, error messages are helpful, and media has captions — the HTML report has a checklist.
+- Click handlers attached in JavaScript (React `onClick`, `addEventListener`) are invisible in the DOM, so the keyboard-reachability check covers `wire:click`, Alpine, `onclick` and ARIA roles.
+- Forms are not submitted to reveal validation errors (that could change data).
 - Filament multi-tenant panels are not scanned yet.
 - Svelte and Inertia SSR-only markup are not marked yet.
 
@@ -158,6 +204,7 @@ After turning Blade markers on or off, run `php artisan view:clear` (`a11y:scan`
 ```bash
 composer test                                        # PHP unit tests
 node --test tests/js/vite-plugin.test.mjs            # Vite plugin (needs vue + @babel/parser installed)
+node --test tests/js/scanner.e2e.test.mjs            # real scanner on fixture pages (needs playwright + axe-core)
 ```
 
 ## License

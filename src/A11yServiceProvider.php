@@ -4,6 +4,7 @@ namespace DwivediAnuj\A11y;
 
 use DwivediAnuj\A11y\Auth\ScanLoginController;
 use DwivediAnuj\A11y\Commands\InstallCommand;
+use DwivediAnuj\A11y\Commands\LintCommand;
 use DwivediAnuj\A11y\Commands\ScanCommand;
 use DwivediAnuj\A11y\Markers\BladeMarkers;
 use Illuminate\Support\Facades\Route;
@@ -21,7 +22,7 @@ class A11yServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__.'/../config/a11y.php' => config_path('a11y.php')], 'a11y-config');
-            $this->commands([ScanCommand::class, InstallCommand::class]);
+            $this->commands([ScanCommand::class, LintCommand::class, InstallCommand::class]);
         }
 
         if (! static::enabled()) {

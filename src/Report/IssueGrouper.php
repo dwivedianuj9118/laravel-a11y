@@ -46,12 +46,21 @@ final class IssueGrouper
                         'count' => 0,
                         'pages' => [],
                         'sessions' => [],
+                        'variants' => [],
+                        'states' => [],
+                        'seen' => [],
                         'html' => $node['html'] ?? '',
                         'target' => $target,
                     ];
 
-                    $issues[$key]['count']++;
-                    $issues[$key]['pages'][$page['finalUrl'] ?? $page['url']] = true;
+                    // The same element found in several passes (desktop, 320px, dark) counts once.
+                    $pageUrl = $page['finalUrl'] ?? $page['url'];
+                    $issues[$key]['seen'][$pageUrl.'|'.$target] = true;
+                    $issues[$key]['variants'][$page['variant'] ?? 'desktop'] = true;
+                    if (! empty($node['state'])) {
+                        $issues[$key]['states'][$node['state']] = true;
+                    }
+                    $issues[$key]['pages'][$pageUrl] = true;
                     $issues[$key]['sessions'][$page['session'] ?? 'guest'] = true;
                     foreach ($loc['also'] as $also) {
                         $issues[$key]['also'][$also] = true;
@@ -61,6 +70,13 @@ final class IssueGrouper
         }
 
         $issues = array_map(function (array $i) {
+            $i['count'] = count($i['seen']);
+            unset($i['seen']);
+            $i['variants'] = array_keys($i['variants']);
+            if (! in_array('desktop', $i['variants'], true) && $i['states']) {
+                $i['also']['appears '.array_key_first($i['states'])] = true;
+            }
+            unset($i['states']);
             $i['pages'] = array_keys($i['pages']);
             $i['sessions'] = array_keys($i['sessions']);
             $i['also'] = array_keys($i['also']);
@@ -101,6 +117,17 @@ final class IssueGrouper
     private static function targetString(array $target): string
     {
         return implode(' >>> ', array_map(fn ($t) => is_array($t) ? implode(' > ', $t) : $t, $target));
+    }
+
+    /** "only at 320 px wide" / "only in dark mode" when the issue never appeared in the normal desktop pass. */
+    public static function variantNote(array $issue): ?string
+    {
+        $v = $issue['variants'] ?? ['desktop'];
+        if ($v === [] || in_array('desktop', $v, true)) {
+            return null;
+        }
+
+        return 'only '.implode(' and ', array_map(fn ($x) => ['mobile' => 'at 320 px wide', 'dark' => 'in dark mode', 'states' => 'after opening a menu or dialog'][$x] ?? $x, $v));
     }
 
     public static function meetsThreshold(string $impact, string $failOn): bool

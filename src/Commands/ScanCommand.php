@@ -4,6 +4,7 @@ namespace DwivediAnuj\A11y\Commands;
 
 use DwivediAnuj\A11y\A11yServiceProvider;
 use DwivediAnuj\A11y\Auth\ScanLoginController;
+use DwivediAnuj\A11y\Commands\Concerns\RendersIssues;
 use DwivediAnuj\A11y\Discovery\FilamentDiscoverer;
 use DwivediAnuj\A11y\Discovery\RouteDiscoverer;
 use DwivediAnuj\A11y\Report\Baseline;
@@ -21,12 +22,18 @@ use Throwable;
 
 class ScanCommand extends Command
 {
+    use RendersIssues;
+
     protected $signature = 'a11y:scan
         {urls?* : URLs or paths to scan (default: discover from routes and Filament panels)}
         {--as= : Log in as this user id for pages behind login (default: a11y.auth.user)}
         {--guard= : Auth guard for --as (default: a11y.auth.guard or the app default)}
         {--standard= : wcag2a, wcag2aa, wcag21aa or wcag22aa}
         {--best-practice : Also run axe best-practice rules}
+        {--no-keyboard : Skip the keyboard & focus checks (Tab walk)}
+        {--no-mobile : Skip the extra pass at 320 px wide (reflow)}
+        {--dark : Also scan in dark mode (prefers-color-scheme: dark)}
+        {--no-states : Do not open menus/dialogs to scan what they reveal}
         {--fail-on= : Exit 1 on this impact or worse: minor, moderate, serious, critical, none}
         {--json= : Write the full report as JSON to this path}
         {--html= : Write a shareable HTML report to this path}
@@ -86,10 +93,23 @@ class ScanCommand extends Command
         }
 
         $this->newLine();
-        $this->line("  <options=bold>laravel-a11y</>  {$standard}".($this->option('best-practice') ? ' + best-practice' : '')."  ·  {$total} page(s)  ·  {$base}");
+        $passes = array_filter(['desktop', ($config['mobile'] ?? true) && ! $this->option('no-mobile') ? '320px' : null, ($config['dark'] ?? false) || $this->option('dark') ? 'dark' : null]);
+        $this->line("  <options=bold>laravel-a11y</>  {$standard}".($this->option('best-practice') ? ' + best-practice' : '')."  ·  {$total} page(s) × ".implode(' + ', $passes)."  ·  {$base}");
         $this->newLine();
 
         try {
+            if ($this->option('no-keyboard')) {
+                $config['keyboard'] = false;
+            }
+            if ($this->option('no-mobile')) {
+                $config['mobile'] = false;
+            }
+            if ($this->option('dark')) {
+                $config['dark'] = true;
+            }
+            if ($this->option('no-states')) {
+                $config['states'] = false;
+            }
             $scan = $scanner->run($sessions, $tags, $config, fn (string $line) => $this->line('  <fg=gray>'.OutputFormatter::escape($line).'</>'));
         } catch (Throwable $e) {
             $this->newLine();
@@ -148,7 +168,7 @@ class ScanCommand extends Command
     private function writeReports(array $issues, array $scan, string $standard, string $base, int $baselineCount): void
     {
         $pages = array_map(
-            fn ($p) => array_intersect_key($p, array_flip(['session', 'url', 'finalUrl', 'status', 'error', 'phpOutput', 'markers'])),
+            fn ($p) => array_intersect_key($p, array_flip(['session', 'variant', 'url', 'finalUrl', 'status', 'error', 'phpOutput', 'markers'])),
             $scan['pages'],
         );
 
@@ -263,7 +283,11 @@ class ScanCommand extends Command
     private function renderPageProblems(array $scan): void
     {
         foreach ($scan['pages'] as $page) {
-            $label = $page['url'].(($page['session'] ?? 'guest') !== 'guest' ? " (as {$page['session']})" : '');
+            $variant = $page['variant'] ?? 'desktop';
+            if ($variant !== 'desktop' && ! $page['error']) {
+                continue; // status/redirect/PHP-output warnings were already shown for the desktop pass
+            }
+            $label = $page['url'].(($page['session'] ?? 'guest') !== 'guest' ? " (as {$page['session']})" : '').($variant !== 'desktop' ? " [{$variant}]" : '');
 
             if ($page['error']) {
                 $this->components->warn('Could not scan '.OutputFormatter::escape($label).': '.OutputFormatter::escape($page['error']));
@@ -277,82 +301,6 @@ class ScanCommand extends Command
                 $this->components->warn(OutputFormatter::escape("{$label} has PHP output printed into the page ({$page['phpOutput']['count']}×, e.g. \"{$page['phpOutput']['first']}\"). Turn off display_errors or fix the cause; visitors would see it."));
             }
         }
-    }
-
-    private function renderIssues(array $issues, bool $hasBaseline = false): void
-    {
-        $this->newLine();
-
-        if ($issues === []) {
-            $this->components->info('No WCAG issues found by automated checks. Still test keyboard use, focus order and screen-reader output by hand.');
-
-            return;
-        }
-
-        $colors = ['critical' => 'red', 'serious' => 'red', 'moderate' => 'yellow', 'minor' => 'gray'];
-
-        foreach ($issues as $n => $issue) {
-            $color = $colors[$issue['impact']] ?? 'white';
-            $wcag = $issue['wcag'] ? ' WCAG '.implode(', ', $issue['wcag']) : '';
-            $times = $issue['count'] > 1 ? " <fg=gray>×{$issue['count']}</>" : '';
-            $pages = count($issue['pages']) > 1 ? ' <fg=gray>on '.count($issue['pages']).' pages</>' : '';
-
-            $known = ! empty($issue['baseline']) ? ' <fg=gray>(in baseline)</>' : '';
-            $this->line(sprintf('  <fg=%s;options=bold>%-8s</> <options=bold>%s</><fg=gray>%s</>%s', $color, strtoupper($issue['impact']), $issue['rule'], $wcag, $times.$pages.$known));
-            $this->line('  '.$this->location($issue));
-            foreach ($issue['also'] as $also) {
-                $this->line('  <fg=gray>  ↳ '.OutputFormatter::escape($also).'</>');
-            }
-            $this->line('  <fg=gray>'.OutputFormatter::escape(mb_strimwidth(preg_replace('/\s+/', ' ', $issue['html']), 0, 110, '…')).'</>');
-            $this->line('  <fg=green>Fix:</> '.OutputFormatter::escape($issue['fix']));
-            if ($n < count($issues) - 1) {
-                $this->newLine();
-            }
-        }
-
-        $this->newLine();
-        $byImpact = array_count_values(array_column($issues, 'impact'));
-        $exact = count(array_filter($issues, fn ($i) => in_array($i['how'], ['marker', 'call-site', 'field'], true)));
-        $summary = collect(['critical', 'serious', 'moderate', 'minor'])
-            ->filter(fn ($k) => isset($byImpact[$k]))
-            ->map(fn ($k) => "{$byImpact[$k]} {$k}")
-            ->implode(', ');
-
-        $newCount = count(array_filter($issues, fn ($i) => empty($i['baseline'])));
-        $this->line('  <options=bold>'.count($issues)." issue(s)</>: {$summary}  ·  {$exact}/".count($issues).' mapped to an exact line in your code'
-            .($hasBaseline ? "  ·  <options=bold>{$newCount} new</> since baseline" : ''));
-        $this->line('  <fg=gray>Automated checks find only part of WCAG. Also test keyboard use, focus order, alt-text quality and captions by hand.</>');
-    }
-
-    private function location(array $issue): string
-    {
-        if ($issue['file'] === null) {
-            return '<fg=yellow>source not found</> <fg=gray>(no marker on this element or its parents) · '.OutputFormatter::escape($issue['target']).'</>';
-        }
-
-        $label = $issue['line'] !== null ? "{$issue['file']}:{$issue['line']}" : $issue['file'];
-        $link = $this->editorLink($issue['file'], $issue['line'] ?? 1);
-        $text = $link ? "<href={$link}>".OutputFormatter::escape($label).'</>' : OutputFormatter::escape($label);
-        $note = $issue['note'] ? ' <fg=gray>('.OutputFormatter::escape($issue['note']).')</>' : '';
-
-        return match ($issue['how']) {
-            'marker', 'call-site', 'field' => "<fg=cyan>{$text}</>{$note}",
-            'page' => "<fg=yellow>in</> {$text}{$note} <fg=gray>(exact line arrives with the Vite plugin)</>",
-            'vendor' => "<fg=yellow>vendor</> {$text}{$note}",
-            default => "<fg=yellow>near</> {$text}{$note} <fg=gray>(nearest marked parent; the element itself was added by JavaScript or PHP)</>",
-        };
-    }
-
-    private function editorLink(string $file, int $line): ?string
-    {
-        $abs = str_starts_with($file, '/') ? $file : base_path($file);
-
-        return match (config('a11y.editor')) {
-            'vscode' => "vscode://file/{$abs}:{$line}",
-            'cursor' => "cursor://file/{$abs}:{$line}",
-            'phpstorm' => "phpstorm://open?file={$abs}&line={$line}",
-            default => null,
-        };
     }
 
     private function renderSkipped(): void

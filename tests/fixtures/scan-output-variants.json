@@ -1,0 +1,184 @@
+{
+  "pages": [
+    {
+      "session": "guest",
+      "variant": "desktop",
+      "url": "http://127.0.0.1:8790/reflow.html",
+      "finalUrl": "http://127.0.0.1:8790/reflow.html",
+      "status": 200,
+      "error": null,
+      "violations": [],
+      "markers": 7,
+      "phpOutput": null
+    },
+    {
+      "session": "guest",
+      "variant": "desktop",
+      "url": "http://127.0.0.1:8790/dark.html",
+      "finalUrl": "http://127.0.0.1:8790/dark.html",
+      "status": 200,
+      "error": null,
+      "violations": [],
+      "markers": 4,
+      "phpOutput": null
+    },
+    {
+      "session": "guest",
+      "variant": "mobile",
+      "url": "http://127.0.0.1:8790/reflow.html",
+      "finalUrl": "http://127.0.0.1:8790/reflow.html",
+      "status": 200,
+      "error": null,
+      "violations": [
+        {
+          "id": "scrollable-region-focusable",
+          "impact": "serious",
+          "help": "Scrollable region must have keyboard access",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/scrollable-region-focusable?application=axeAPI",
+          "tags": [
+            "cat.keyboard",
+            "wcag2a",
+            "wcag211",
+            "wcag213",
+            "TTv5",
+            "TT4.a",
+            "EN-301-549",
+            "EN-9.2.1.1",
+            "EN-9.2.1.3",
+            "RGAAv4",
+            "RGAA-7.3.2"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "div:nth-child(5)"
+              ],
+              "html": "<div style=\"overflow-x:auto\">\n    <table style=\"width:900px\"><tbody><tr><th>Wide</th><th>table</th></tr><tr><td>allowed</td><td>scrolls in its own box</td></tr></tbody></table>\n  </div>",
+              "summary": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable",
+              "src": "resources/views/reflow.blade.php:6",
+              "how": "marker",
+              "uses": [],
+              "selfUse": null,
+              "ctx": {}
+            }
+          ]
+        },
+        {
+          "id": "reflow",
+          "impact": "serious",
+          "tags": [
+            "wcag21aa",
+            "wcag1410",
+            "cat.structure"
+          ],
+          "help": "Page needs horizontal scrolling at 320 px wide (content does not reflow)",
+          "helpUrl": "https://www.w3.org/WAI/WCAG22/Understanding/reflow.html",
+          "nodes": [
+            {
+              "target": [
+                "body:nth-of-type(1) > main:nth-of-type(1) > div:nth-of-type(1)"
+              ],
+              "html": "<div style=\"width:600px;background:#eee\">R1 fixed 600px box</div>",
+              "summary": "Sticks out 288px past the 320px viewport (600px wide; width: 600px).",
+              "src": "resources/views/reflow.blade.php:4",
+              "how": "marker",
+              "uses": [],
+              "selfUse": null,
+              "ctx": {}
+            },
+            {
+              "target": [
+                "body:nth-of-type(1) > main:nth-of-type(1) > p:nth-of-type(2)"
+              ],
+              "html": "<p style=\"white-space:nowrap\">R2 this line never wraps and keeps going far past the edge of a phone screen</p>",
+              "summary": "Sticks out 238px past the 320px viewport (its text is 550px wide in a 304px box; white-space: nowrap, overflow-wrap: normal).",
+              "src": "resources/views/reflow.blade.php:5",
+              "how": "marker",
+              "uses": [],
+              "selfUse": null,
+              "ctx": {}
+            }
+          ]
+        }
+      ],
+      "markers": 7,
+      "phpOutput": null
+    },
+    {
+      "session": "guest",
+      "variant": "mobile",
+      "url": "http://127.0.0.1:8790/dark.html",
+      "finalUrl": "http://127.0.0.1:8790/dark.html",
+      "status": 200,
+      "error": null,
+      "violations": [],
+      "markers": 4,
+      "phpOutput": null
+    },
+    {
+      "session": "guest",
+      "variant": "dark",
+      "url": "http://127.0.0.1:8790/reflow.html",
+      "finalUrl": "http://127.0.0.1:8790/reflow.html",
+      "status": 200,
+      "error": null,
+      "violations": [],
+      "markers": 7,
+      "phpOutput": null
+    },
+    {
+      "session": "guest",
+      "variant": "dark",
+      "url": "http://127.0.0.1:8790/dark.html",
+      "finalUrl": "http://127.0.0.1:8790/dark.html",
+      "status": 200,
+      "error": null,
+      "violations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=axeAPI",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                ".d"
+              ],
+              "html": "<p class=\"d\">D1 fine in light mode, unreadable in dark mode</p>",
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.49 (foreground color: #333333, background color: #111111, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1",
+              "src": "resources/views/dark.blade.php:3",
+              "how": "marker",
+              "uses": [],
+              "selfUse": null,
+              "ctx": {}
+            }
+          ]
+        }
+      ],
+      "markers": 4,
+      "phpOutput": null
+    }
+  ],
+  "sessions": [
+    {
+      "name": "guest",
+      "loginError": null
+    }
+  ],
+  "meta": {
+    "axe": "4.14.0",
+    "ms": 3304
+  }
+}

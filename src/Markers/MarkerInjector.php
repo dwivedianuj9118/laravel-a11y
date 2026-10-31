@@ -145,6 +145,10 @@ final class MarkerInjector
             $insert = $this->useAttr.$this->line.'"';
         }
 
+        if ($this->collected !== null) {
+            $this->collected[] = ['name' => $name, 'text' => $tagText, 'line' => $this->line, 'start' => $i, 'end' => $end];
+        }
+
         $this->copyTo($nameEnd, $i);
         if ($insert !== null) {
             $this->out .= $insert;
@@ -340,6 +344,27 @@ final class MarkerInjector
     private int $cursor = 0;
 
     private string $useAttr = '';
+
+    /** @var array<int, array{name: string, text: string, line: int, start: int, end: int}>|null */
+    private ?array $collected = null;
+
+    /**
+     * Every opening tag in a Blade template (same rules as inject(): echoes, @php, comments,
+     * directives and script/style bodies are skipped), for static checks.
+     *
+     * @return array<int, array{name: string, text: string, line: int, start: int, end: int}>
+     */
+    public function tags(string $source): array
+    {
+        $this->collected = [];
+        try {
+            $this->inject($source, '');
+
+            return $this->collected;
+        } finally {
+            $this->collected = null;
+        }
+    }
 
     public function __construct(private bool $stampComponents = true) {}
 

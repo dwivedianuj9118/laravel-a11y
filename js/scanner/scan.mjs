@@ -10,6 +10,10 @@
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { PAGE_HELPERS } from './page-helpers.mjs';
+import { keyboardChecks } from './keyboard.mjs';
+import { reflowCheck } from './reflow.mjs';
+import { statesPass } from './states.mjs';
 
 const [, , inputPath, outputPath] = process.argv;
 if (!inputPath || !outputPath) {
@@ -44,33 +48,47 @@ const axeSource = readFileSync(resolve('axe-core/axe.min.js'), 'utf8');
 const ATTR = 'data-a11y-src';
 const USE = 'data-a11y-use';
 
-async function scanPage(context, url, session) {
+// Wait until the page is usable: full load (capped), quiet network (capped), Livewire booted.
+async function settle(page, variant) {
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await page
+        .evaluate(
+            () =>
+                new Promise((done) => {
+                    const ready = () => requestAnimationFrame(() => setTimeout(done, 50));
+                    if (window.Livewire && !window.Livewire.all?.().length && document.querySelector('[wire\\:id],[wire\\:snapshot]')) {
+                        document.addEventListener('livewire:initialized', ready, { once: true });
+                        setTimeout(done, 3000);
+                    } else ready();
+                }),
+        )
+        .catch(() => {});
+    if (input.waitMs) await page.waitForTimeout(input.waitMs);
+
+    // Apps that switch theme with a class (Tailwind darkMode: 'class') instead of the media query.
+    if (variant === 'dark' && input.darkClass) {
+        await page.evaluate((c) => document.documentElement.classList.add(c), input.darkClass).catch(() => {});
+        await page.waitForTimeout(150);
+    }
+}
+
+async function inject(page) {
+    await page.addScriptTag({ content: axeSource });
+    await page.addScriptTag({ content: PAGE_HELPERS });
+}
+
+// variant: 'desktop' (default, 1280px), 'mobile' (320px, + reflow check) or 'dark' (prefers-color-scheme: dark)
+async function scanPage(context, url, session, variant = 'desktop') {
     const page = await context.newPage();
-    const result = { session, url, finalUrl: url, status: null, error: null, violations: [] };
+    const result = { session, variant, url, finalUrl: url, status: null, error: null, violations: [] };
 
     try {
         // Don't block on slow third-party images/fonts: start once the HTML is parsed,
         // then give the full load a capped wait.
         const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: input.timeoutMs ?? 30000 });
         result.status = response ? response.status() : null;
-        await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
-
-        // Best effort: let Livewire / Inertia / lazy content settle, but never hang on a busy network.
-        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-        await page
-            .evaluate(
-                () =>
-                    new Promise((done) => {
-                        const ready = () => requestAnimationFrame(() => setTimeout(done, 50));
-                        if (window.Livewire && !window.Livewire.all?.().length && document.querySelector('[wire\\:id],[wire\\:snapshot]')) {
-                            document.addEventListener('livewire:initialized', ready, { once: true });
-                            setTimeout(done, 3000);
-                        } else ready();
-                    }),
-            )
-            .catch(() => {});
-        if (input.waitMs) await page.waitForTimeout(input.waitMs);
-
+        await settle(page, variant);
         result.finalUrl = page.url();
 
         // How many source markers the page carries: zero everywhere means we are scanning the wrong
@@ -91,77 +109,13 @@ async function scanPage(context, url, session) {
             })
             .catch(() => null);
 
-        await page.addScriptTag({ content: axeSource });
+        await inject(page);
         result.violations = await page.evaluate(
-            async ({ tags, ATTR, USE }) => {
+            async ({ tags }) => {
                 const res = await window.axe.run(document, {
                     runOnly: { type: 'tag', values: tags },
                     resultTypes: ['violations'],
                 });
-
-                const locate = (target) => {
-                    let el = null;
-                    try {
-                        // axe targets are arrays; nested arrays mean iframe/shadow DOM hops.
-                        let root = document;
-                        for (const sel of target) {
-                            const s = Array.isArray(sel) ? sel[0] : sel;
-                            el = root.querySelector(s);
-                            if (!el) break;
-                            root = el.shadowRoot || el.contentDocument || el;
-                        }
-                    } catch {}
-                    if (!el) return { src: null, how: 'none', uses: [], ctx: {} };
-
-                    const srcEl = el.closest(`[${ATTR}]`);
-                    const src = srcEl ? srcEl.getAttribute(ATTR) : null;
-                    const how = srcEl === el ? 'marker' : srcEl ? 'ancestor' : 'none';
-                    const isVendor = (s) => /^(vendor|storage)\//.test(s) || s.startsWith('/');
-
-                    // Component call sites between the element and the first marker in app code.
-                    const uses = [];
-                    for (let n = el, hops = 0; n && n.nodeType === 1 && hops < 25; n = n.parentElement, hops++) {
-                        const u = n.getAttribute(USE);
-                        if (u) uses.push(u);
-                        const s = n.getAttribute(ATTR);
-                        if (s && !isVendor(s)) break;
-                    }
-
-                    // Livewire / Filament: the bound state path and the Livewire component name.
-                    const ctx = {};
-                    for (let n = el, h = 0; n && n.nodeType === 1 && h < 8 && !ctx.model; n = n.parentElement, h++) {
-                        for (const a of n.getAttributeNames()) {
-                            if (a.startsWith('wire:model') || a.startsWith('x-model')) {
-                                ctx.model = n.getAttribute(a);
-                                break;
-                            }
-                        }
-                    }
-                    const lw = el.closest('[wire\\:id]');
-                    if (lw) {
-                        ctx.component = lw.getAttribute('wire:name');
-                        if (!ctx.component) {
-                            try {
-                                ctx.component = JSON.parse(lw.getAttribute('wire:snapshot')).memo.name;
-                            } catch {}
-                        }
-                    }
-
-                    // Inertia: which page component rendered this.
-                    try {
-                        const holder = el.closest('[data-page]');
-                        const json = holder?.getAttribute('data-page') || document.querySelector('script[data-page]')?.textContent;
-                        ctx.inertia = (json ? JSON.parse(json) : window.history.state?.page)?.component || undefined;
-                    } catch {}
-
-                    // A call-site marker on the failing element itself (vendor component that forwards
-                    // $attributes and renders its HTML in PHP, e.g. Filament 5's icon button).
-                    const selfUse = el.getAttribute(USE);
-
-                    return { src, how, uses, selfUse, ctx };
-                };
-
-                const strip = (html) => html.replace(new RegExp(`\\s(${ATTR}|${USE})="[^"]*"`, 'g'), '');
 
                 return res.violations.map((v) => ({
                     id: v.id,
@@ -171,14 +125,34 @@ async function scanPage(context, url, session) {
                     tags: v.tags,
                     nodes: v.nodes.map((n) => ({
                         target: n.target,
-                        html: strip(n.html),
+                        html: window.__a11y.strip(n.html),
                         summary: n.failureSummary,
-                        ...locate(n.target),
+                        ...window.__a11y.locate(window.__a11y.fromTarget(n.target)),
                     })),
                 }));
             },
-            { tags: input.tags, ATTR, USE },
+            { tags: input.tags },
         );
+
+        if (variant === 'mobile') {
+            result.violations.push(...(await reflowCheck(page, input.tags).catch(() => [])));
+        }
+
+        if (input.keyboard !== false && variant === 'desktop') {
+            const kb = await keyboardChecks(page, input.tags, { maxTabs: input.maxTabs }).catch((e) => {
+                result.keyboardError = String(e.message || e).split('\n')[0];
+                return [];
+            });
+            result.violations.push(...kb);
+        }
+
+        if (input.states !== false && variant === 'desktop') {
+            const st = await statesPass(page, async (p) => { await settle(p, variant); await inject(p); }, input.tags, {
+                maxStates: input.maxStates, timeoutMs: input.timeoutMs,
+            }).catch((e) => ({ triggers: 0, violations: [], error: String(e.message || e).split('\n')[0] }));
+            result.states = { triggers: st.triggers, error: st.error || null };
+            result.stateViolations = st.violations;
+        }
     } catch (e) {
         result.error = String(e && e.message ? e.message : e).split('\n')[0];
     } finally {
@@ -222,23 +196,48 @@ for (const session of sessions) {
         continue;
     }
 
-    const queue = [...session.urls];
-    const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 3, queue.length)) }, async () => {
-        while (queue.length) {
-            const url = queue.shift();
-            const r = await scanPage(context, url, session.name);
-            pages.push(r);
-            process.stderr.write(`${r.error ? 'ERR ' : 'ok  '}${url}\n`);
-        }
-    });
-    await Promise.all(workers);
+    await runQueue(context, session, 'desktop');
+
+    // Extra passes reuse the logged-in cookies of the main context.
+    const VARIANTS = {
+        mobile: { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },
+        dark: { viewport: { width: 1280, height: 900 }, colorScheme: 'dark' },
+    };
+    for (const variant of input.variants || []) {
+        if (!VARIANTS[variant]) continue;
+        const ctx = await browser.newContext({
+            extraHTTPHeaders: input.headers || {},
+            storageState: await context.storageState(),
+            ...VARIANTS[variant],
+        });
+        await runQueue(ctx, session, variant);
+        await ctx.close();
+    }
     await context.close();
 }
 
 await browser.close();
 
-const order = sessions.flatMap((s) => s.urls.map((u) => s.name + ' ' + u));
-pages.sort((a, b) => order.indexOf(a.session + ' ' + a.url) - order.indexOf(b.session + ' ' + b.url));
+async function runQueue(context, session, variant) {
+    const queue = [...session.urls];
+    const workers = Array.from({ length: Math.max(1, Math.min(input.concurrency ?? 3, queue.length)) }, async () => {
+        while (queue.length) {
+            const url = queue.shift();
+            const r = await scanPage(context, url, session.name, variant);
+            const { stateViolations, ...page } = r;
+            pages.push(page);
+            if (stateViolations?.length) {
+                // Issues seen only after opening menus/dialogs, reported as their own pass.
+                pages.push({ ...page, variant: 'states', violations: stateViolations, phpOutput: null });
+            }
+            process.stderr.write(`${r.error ? 'ERR ' : 'ok  '}${url}${variant !== 'desktop' ? ` (${variant})` : ''}\n`);
+        }
+    });
+    await Promise.all(workers);
+}
+
+const order = sessions.flatMap((s) => ['desktop', 'states', ...(input.variants || [])].flatMap((v) => s.urls.map((u) => `${s.name} ${v} ${u}`)));
+pages.sort((a, b) => order.indexOf(`${a.session} ${a.variant} ${a.url}`) - order.indexOf(`${b.session} ${b.variant} ${b.url}`));
 writeFileSync(
     outputPath,
     JSON.stringify({ pages, sessions: sessionInfo, meta: { axe: JSON.parse(readFileSync(resolve('axe-core/package.json'), 'utf8')).version, ms: Date.now() - started } }, null, 2),

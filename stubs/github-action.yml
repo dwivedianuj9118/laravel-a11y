@@ -36,6 +36,9 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: Lint Blade files (fast, no browser)
+        run: php artisan a11y:lint --fail-on=critical
+
       - name: Prepare app
         run: |
           cp .env.example .env

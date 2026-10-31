@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>kb</title>
+<style>
+  body { margin: 0; font: 16px sans-serif; }
+  .noring:focus { outline: none; }
+  .cookie { position: fixed; bottom: 0; left: 0; right: 0; height: 140px; background: #222; color: #fff; }
+  .spacer { height: 1400px; }
+</style></head>
+<body>
+<main data-a11y-src="resources/views/kb.blade.php:1">
+  <h1 data-a11y-src="resources/views/kb.blade.php:2">Keyboard fixture</h1>
+  <a data-a11y-src="resources/views/kb.blade.php:3" href="/ok">Good link</a>
+  <button data-a11y-src="resources/views/kb.blade.php:4" type="button">Good button</button>
+  <div data-a11y-src="resources/views/kb.blade.php:5" class="btn" wire:click="save">Save (K1 div wire:click)</div>
+  <span data-a11y-src="resources/views/kb.blade.php:6" x-on:click="open = true" @click="open = true">Open (K2 span @click)</span>
+  <div data-a11y-src="resources/views/kb.blade.php:7" role="button" tabindex="0">Good role=button</div>
+  <div data-a11y-src="resources/views/kb.blade.php:8" wire:click="go"><button data-a11y-src="resources/views/kb.blade.php:8" type="button">Good wrapped button</button></div>
+  <button data-a11y-src="resources/views/kb.blade.php:9" type="button" class="noring">K3 no focus ring</button>
+  <input data-a11y-src="resources/views/kb.blade.php:10" type="text" aria-label="Good input">
+  <div class="spacer"></div>
+  <a data-a11y-src="resources/views/kb.blade.php:12" href="/far">K4 link under cookie bar</a>
+  <div data-a11y-src="resources/views/kb.blade.php:13" class="cookie">Cookie bar (fixed)</div>
+</main>
+</body></html>
