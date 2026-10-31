@@ -1,0 +1,182 @@
+{
+  "pages": [
+    {
+      "url": "http://127.0.0.1:8765/index.html",
+      "finalUrl": "http://127.0.0.1:8765/index.html",
+      "status": 200,
+      "error": null,
+      "violations": [
+        {
+          "id": "button-name",
+          "impact": "critical",
+          "help": "Buttons must have discernible text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/button-name?application=axeAPI",
+          "tags": [
+            "cat.name-role-value",
+            "wcag2a",
+            "wcag412",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT6.a",
+            "EN-301-549",
+            "EN-9.4.1.2",
+            "ACT",
+            "RGAAv4",
+            "RGAA-11.9.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "button:nth-child(3)"
+              ],
+              "html": "<button type=\"button\"></button>",
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "src": "resources/views/components/icon-button.blade.php:1",
+              "how": "marker"
+            },
+            {
+              "target": [
+                "button:nth-child(4)"
+              ],
+              "html": "<button type=\"button\"></button>",
+              "summary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "src": "resources/views/components/icon-button.blade.php:1",
+              "how": "marker"
+            }
+          ]
+        },
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=axeAPI",
+          "tags": [
+            "cat.color",
+            "wcag2aa",
+            "wcag143",
+            "TTv5",
+            "TT13.c",
+            "EN-301-549",
+            "EN-9.1.4.3",
+            "ACT",
+            "RGAAv4",
+            "RGAA-3.2.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "p"
+              ],
+              "html": "<p style=\"color:#c8c8c8;background:#fff\">Low contrast <span>child</span></p>",
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.67 (foreground color: #c8c8c8, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1",
+              "src": "resources/views/fixture/blade-page.blade.php:20",
+              "how": "marker"
+            },
+            {
+              "target": [
+                "span"
+              ],
+              "html": "<span>child</span>",
+              "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.67 (foreground color: #c8c8c8, background color: #ffffff, font size: 12.0pt (16px), font weight: normal). Expected contrast ratio of 4.5:1",
+              "src": "resources/views/fixture/blade-page.blade.php:20",
+              "how": "ancestor"
+            }
+          ]
+        },
+        {
+          "id": "image-alt",
+          "impact": "critical",
+          "help": "Images must have alternative text",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/image-alt?application=axeAPI",
+          "tags": [
+            "cat.text-alternatives",
+            "wcag2a",
+            "wcag111",
+            "section508",
+            "section508.22.a",
+            "TTv5",
+            "TT7.a",
+            "TT7.b",
+            "EN-301-549",
+            "EN-9.1.1.1",
+            "ACT",
+            "RGAAv4",
+            "RGAA-1.1.1"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "img[src$=\"missing-1.png\"]"
+              ],
+              "html": "<img src=\"/missing-1.png\">",
+              "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "src": "resources/views/fixture/blade-page.blade.php:12",
+              "how": "marker"
+            },
+            {
+              "target": [
+                "img[src=\"/x.png\"]"
+              ],
+              "html": "<img src=\"/x.png\">",
+              "summary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"",
+              "src": "resources/views/fixture/blade-page.blade.php:9",
+              "how": "ancestor"
+            }
+          ]
+        },
+        {
+          "id": "target-size",
+          "impact": "serious",
+          "help": "All touch targets must be 24px large, or leave sufficient space",
+          "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/target-size?application=axeAPI",
+          "tags": [
+            "cat.sensory-and-visual-cues",
+            "wcag22aa",
+            "wcag258",
+            "EN-301-549v4",
+            "EN-9.2.5.8"
+          ],
+          "nodes": [
+            {
+              "target": [
+                "button:nth-child(3)"
+              ],
+              "html": "<button type=\"button\"></button>",
+              "summary": "Fix any of the following:\n  Target has insufficient size (16px by 6px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px.",
+              "src": "resources/views/components/icon-button.blade.php:1",
+              "how": "marker"
+            },
+            {
+              "target": [
+                "button:nth-child(4)"
+              ],
+              "html": "<button type=\"button\"></button>",
+              "summary": "Fix any of the following:\n  Target has insufficient size (16px by 6px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 16px instead of at least 24px.",
+              "src": "resources/views/components/icon-button.blade.php:1",
+              "how": "marker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:8765/nope.html",
+      "finalUrl": "http://127.0.0.1:8765/nope.html",
+      "status": 404,
+      "error": null,
+      "violations": []
+    },
+    {
+      "url": "http://127.0.0.1:1/down",
+      "finalUrl": "http://127.0.0.1:1/down",
+      "status": null,
+      "error": "page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:1/down",
+      "violations": []
+    }
+  ],
+  "meta": {
+    "axe": "4.14.0",
+    "ms": 1337
+  }
+}
