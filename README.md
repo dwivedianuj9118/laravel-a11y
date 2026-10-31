@@ -14,6 +14,15 @@ Find WCAG accessibility issues in your Laravel app and get the **exact file and 
   Fix: Check styles set on this field (->extraInputAttributes(), ->extraAttributes()) or the panel colors…
 ```
 
+## Quick start
+
+```bash
+composer require dwivedianuj/laravel-a11y --dev
+php artisan a11y:install
+php artisan serve                       # in another terminal; plus `npm run dev` for Vue/React
+php artisan a11y:scan --html=a11y.html  # then open a11y.html
+```
+
 ## Why
 
 Browser tools (axe DevTools, WAVE, Lighthouse) tell you *which element* fails. In a Laravel app that element came from a Blade component, a partial inside a `@foreach`, a Livewire view, a Filament field defined in PHP, or a Vue/React component — and finding that line is most of the work.
@@ -122,6 +131,21 @@ Code-scanning annotations are free on public repositories; private repositories 
 `config/a11y.php` (published by `a11y:install`): environments, markers, standard, `exclude` patterns, `unsafe_words`, `params`, `auth.user`/`auth.guard`, `filament`, concurrency and timeouts, `baseline`, `fail_on`, `editor` (`vscode`, `cursor`, `phpstorm`) for clickable `file:line` links.
 
 After turning Blade markers on or off, run `php artisan view:clear` (`a11y:scan` does this for you).
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `Cannot reach http://…` | The app isn't answering at the base URL. Start it (`php artisan serve --port=8123`) and run `A11Y_BASE_URL=http://127.0.0.1:8123 php artisan a11y:scan`. For Herd/Valet `.test` sites, first check `curl -I http://yoursite.test` works (`herd restart`, `herd link`). |
+| "None of the scanned pages has laravel-a11y source markers" | You're scanning a different app (another server on that port: `kill $(lsof -ti tcp:8123)`), a production build, a non-local `APP_ENV`, or a cached page. Markers only appear in `a11y.environments`. |
+| Every page times out | Same as "Cannot reach", or the page needs more than `a11y.timeout_ms` (default 30 s) to load. |
+| Issues show `near …` or `in resources/js/Pages/X.vue` instead of a line | The Vite plugin isn't active: run `npm run dev` (APP_ENV local), or build with `A11Y_BUILD_MARKERS=true npm run build`. Check `vite.config.js` has `a11y()` in `plugins`. |
+| Pages behind login are skipped | Pass `--as=ID` (a real user id), or set `A11Y_USER`. If routes are cached, run `php artisan route:clear` (the login route is registered at runtime). |
+| A route is skipped with "no value for {param}" | Add an example value in `config/a11y.php` → `params`, e.g. `'slug' => 'hello-world'`. |
+| A route you need is skipped with "may change data" | Its name contains a word from `unsafe_words`. Pass it explicitly: `php artisan a11y:scan /reports/export-preview`. |
+| "PHP output printed into the page" | `display_errors` is on and PHP warnings/deprecations are written into your HTML. Fix the cause or turn `display_errors` off. |
+| `composer require` fails on PHP 8.5 with a dev dependency (e.g. paratest) | Not this package: an existing lock-file entry doesn't allow your PHP version yet. Use `composer require dwivedianuj/laravel-a11y --dev --ignore-platform-req=php`. |
+| Old views have no markers | `php artisan view:clear` (`a11y:scan` does it automatically unless `--keep-views`). |
 
 ## Limits
 
